@@ -19,7 +19,10 @@ cloudinary.config({
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://yuva-manthan-backend.vercel.app'],
+    credentials: true
+  }));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
@@ -127,6 +130,16 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Routes
+
+// Health check route
+app.get('/health', (req, res) => {
+  res.json({ 
+    message: 'Backend is running successfully!', 
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
 
 // Auth routes
 app.post('/api/auth/register', async (req, res) => {
