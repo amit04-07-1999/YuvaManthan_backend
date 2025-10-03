@@ -28,19 +28,22 @@ app.use(express.json());
 // MongoDB connection
 const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://yuvamanthan:9315264682@cluster0.7imkzpd.mongodb.net/crowdsolve';
 
+// MongoDB connection with better error handling for serverless
 mongoose.connect(mongoUri, {
-  serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-  maxPoolSize: 10, // Maintain up to 10 socket connections
-  minPoolSize: 5, // Maintain a minimum of 5 socket connections
-  maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
+  serverSelectionTimeoutMS: 10000, // Increase timeout for serverless
+  socketTimeoutMS: 45000,
+  maxPoolSize: 1, // Reduce pool size for serverless
+  minPoolSize: 0, // No minimum connections for serverless
+  maxIdleTimeMS: 30000,
+  connectTimeoutMS: 10000, // Connection timeout
 })
 .then(() => {
   console.log('MongoDB is connected successfully');
 })
 .catch((err) => {
   console.error('MongoDB connection error:', err);
-  process.exit(1); // Exit process if MongoDB connection fails
+  // Don't exit process in serverless environment
+  // The connection will be retried on next request
 });
 
 // User Schema
@@ -150,6 +153,19 @@ app.get('/health', (req, res) => {
 // Database health check route
 app.get('/api/health/db', async (req, res) => {
   try {
+    // Check if connection is ready
+    if (mongoose.connection.readyState !== 1) {
+      // Try to reconnect if not connected
+      await mongoose.connect(mongoUri, {
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 1,
+        minPoolSize: 0,
+        maxIdleTimeMS: 30000,
+        connectTimeoutMS: 10000,
+      });
+    }
+    
     // Test MongoDB connection
     await mongoose.connection.db.admin().ping();
     res.json({ 
@@ -463,6 +479,23 @@ app.post('/api/solutions/:id/comments', authenticateToken, async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
+});
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'CrowdSolve Backend API', 
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      dbHealth: '/api/health/db',
+      auth: '/api/auth/*',
+      problems: '/api/problems/*',
+      solutions: '/api/solutions/*'
+    }
+  });
 });
 
 // Note: No need to create uploads directory since we're using Cloudinary for file storage
