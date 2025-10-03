@@ -24,7 +24,6 @@ app.use(cors({
     credentials: true
   }));
 app.use(express.json());
-app.use('/uploads', express.static('uploads'));
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://yuvamanthan:9315264682@cluster0.7imkzpd.mongodb.net/crowdsolve')
@@ -435,11 +434,7 @@ app.post('/api/solutions/:id/comments', authenticateToken, async (req, res) => {
   }
 });
 
-// Create uploads directory if it doesn't exist
-const fs = require('fs');
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
-}
+// Note: No need to create uploads directory since we're using Cloudinary for file storage
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
