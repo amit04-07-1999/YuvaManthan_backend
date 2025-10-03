@@ -9,7 +9,7 @@ const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 // Cloudinary configuration
 cloudinary.config({
@@ -20,13 +20,13 @@ cloudinary.config({
 
 // Middleware
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://yuva-manthan-frontend.vercel.app'],
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://yuva-manthan-backend.vercel.app'],
     credentials: true
   }));
 app.use(express.json());
 
 // MongoDB connection
-const mongoUri = process.env.MONGODB_URI;
+const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://yuvamanthan:9315264682@cluster0.7imkzpd.mongodb.net/crowdsolve';
 
 // MongoDB connection with better error handling for serverless
 mongoose.connect(mongoUri, {
@@ -150,6 +150,40 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Database health check route
+app.get('/api/health/db', async (req, res) => {
+  try {
+    // Check if connection is ready
+    if (mongoose.connection.readyState !== 1) {
+      // Try to reconnect if not connected
+      await mongoose.connect(mongoUri, {
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 1,
+        minPoolSize: 0,
+        maxIdleTimeMS: 30000,
+        connectTimeoutMS: 10000,
+      });
+    }
+    
+    // Test MongoDB connection
+    await mongoose.connection.db.admin().ping();
+    res.json({ 
+      message: 'Database connection is healthy!', 
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      connectionState: mongoose.connection.readyState
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Database connection failed!', 
+      status: 'ERROR',
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      connectionState: mongoose.connection.readyState
+    });
+  }
+});
 
 // Auth routes
 app.post('/api/auth/register', async (req, res) => {
@@ -447,7 +481,24 @@ app.post('/api/solutions/:id/comments', authenticateToken, async (req, res) => {
   }
 });
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'CrowdSolve Backend API', 
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      dbHealth: '/api/health/db',
+      auth: '/api/auth/*',
+      problems: '/api/problems/*',
+      solutions: '/api/solutions/*'
+    }
+  });
+});
 
+// Note: No need to create uploads directory since we're using Cloudinary for file storage
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
