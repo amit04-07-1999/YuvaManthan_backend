@@ -9,7 +9,7 @@ const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 
 // Cloudinary configuration
 cloudinary.config({
@@ -20,13 +20,13 @@ cloudinary.config({
 
 // Middleware
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://yuva-manthan-backend.vercel.app'],
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://yuva-manthan-frontend.vercel.app'],
     credentials: true
   }));
 app.use(express.json());
 
 // MongoDB connection
-const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://yuvamanthan:9315264682@cluster0.7imkzpd.mongodb.net/crowdsolve';
+const mongoUri = process.env.MONGODB_URI;
 
 // MongoDB connection with better error handling for serverless
 mongoose.connect(mongoUri, {
@@ -153,9 +153,11 @@ app.get('/health', (req, res) => {
 // Database health check route
 app.get('/api/health/db', async (req, res) => {
   try {
-    // Check if connection is ready
-    if (mongoose.connection.readyState !== 1) {
-      // Try to reconnect if not connected
+    const connectionState = mongoose.connection.readyState;
+    
+    // Connection states: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    if (connectionState === 0) {
+      // Try to reconnect if disconnected
       await mongoose.connect(mongoUri, {
         serverSelectionTimeoutMS: 10000,
         socketTimeoutMS: 45000,
@@ -166,14 +168,36 @@ app.get('/api/health/db', async (req, res) => {
       });
     }
     
-    // Test MongoDB connection
-    await mongoose.connection.db.admin().ping();
-    res.json({ 
-      message: 'Database connection is healthy!', 
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      connectionState: mongoose.connection.readyState
-    });
+    // Wait for connection to be ready
+    if (connectionState === 2) {
+      // Connection is in progress, wait a bit
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    
+    // Check if connection is ready and db is available
+    if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
+      // Test MongoDB connection
+      await mongoose.connection.db.admin().ping();
+      res.json({ 
+        message: 'Database connection is healthy!', 
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        connectionState: mongoose.connection.readyState
+      });
+    } else {
+      res.status(503).json({ 
+        message: 'Database connection is not ready!', 
+        status: 'CONNECTING',
+        timestamp: new Date().toISOString(),
+        connectionState: mongoose.connection.readyState,
+        connectionStates: {
+          0: 'disconnected',
+          1: 'connected', 
+          2: 'connecting',
+          3: 'disconnecting'
+        }
+      });
+    }
   } catch (error) {
     res.status(500).json({ 
       message: 'Database connection failed!', 
@@ -497,8 +521,6 @@ app.get('/', (req, res) => {
     }
   });
 });
-
-// Note: No need to create uploads directory since we're using Cloudinary for file storage
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
