@@ -26,12 +26,21 @@ app.use(cors({
 app.use(express.json());
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://yuvamanthan:9315264682@cluster0.7imkzpd.mongodb.net/crowdsolve')
+const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://yuvamanthan:9315264682@cluster0.7imkzpd.mongodb.net/crowdsolve';
+
+mongoose.connect(mongoUri, {
+  serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+  maxPoolSize: 10, // Maintain up to 10 socket connections
+  minPoolSize: 5, // Maintain a minimum of 5 socket connections
+  maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
+})
 .then(() => {
-  console.log('MongoDB is connected');
+  console.log('MongoDB is connected successfully');
 })
 .catch((err) => {
   console.error('MongoDB connection error:', err);
+  process.exit(1); // Exit process if MongoDB connection fails
 });
 
 // User Schema
@@ -136,6 +145,28 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   });
+});
+
+// Database health check route
+app.get('/api/health/db', async (req, res) => {
+  try {
+    // Test MongoDB connection
+    await mongoose.connection.db.admin().ping();
+    res.json({ 
+      message: 'Database connection is healthy!', 
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      connectionState: mongoose.connection.readyState
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Database connection failed!', 
+      status: 'ERROR',
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      connectionState: mongoose.connection.readyState
+    });
+  }
 });
 
 // Auth routes
