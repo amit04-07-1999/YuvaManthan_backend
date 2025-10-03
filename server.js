@@ -27,10 +27,7 @@ app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://yuvamanthan:9315264682@cluster0.7imkzpd.mongodb.net/crowdsolve', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://yuvamanthan:9315264682@cluster0.7imkzpd.mongodb.net/crowdsolve')
 .then(() => {
   console.log('MongoDB is connected');
 })
@@ -74,10 +71,11 @@ const commentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-const User = mongoose.model('User', userSchema);
-const Problem = mongoose.model('Problem', problemSchema);
-const Solution = mongoose.model('Solution', solutionSchema);
-const Comment = mongoose.model('Comment', commentSchema);
+// Check if models already exist to prevent OverwriteModelError
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+const Problem = mongoose.models.Problem || mongoose.model('Problem', problemSchema);
+const Solution = mongoose.models.Solution || mongoose.model('Solution', solutionSchema);
+const Comment = mongoose.models.Comment || mongoose.model('Comment', commentSchema);
 
 // Multer configuration for image uploads (temporary storage for Cloudinary)
 const storage = multer.memoryStorage();
